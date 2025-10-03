@@ -1,46 +1,7 @@
 # tinygrad is not that complicated
-Make `BEAM=3 LLVM=1 LLVMOPT=1 python3 test/test_speed_v_torch.py TestSpeed.test_sum` green or yellow on Mac (see stream)
+> Bounty:  Remove realize from \_\_setitem\_\_ and get TestSetitemLoop.test_arange to be one kernel
 
-The streams in question: 
-1. [tinygrad LLVM speed on CPU!](https://www.youtube.com/watch?v=pKE3LV2Rdyw)
-2. [tinygrad LLVM speed on CPU Apple M3 edition Part 2](https://www.youtube.com/watch?v=c1UHi7dncvo)
-
-## running the benchmark  
-This hasn't been updated in a while; `LLVM=1` is no longer used, so we have to find out what codegen path is taken when `CPU=1` is set and how we can force generation of LLVM IR. 
-
-### what cpu backends does tinygrad actually have? 
-
-CPU=1 chooses from two different backends: `CPU_LLVM` and `CPU_CLANGJIT`. By default `CPU=1` runs the Clang backend. Since `BEAM=3` isn't implemented for `CPU_LLVM` (`LLVMRenderer`), the correct environment variable for this bounty is `CPU=1`. `CPU_CLANGJIT` is not necessary because it's already the default codegen path for `CPU=1`.  
-
-You can adjust the compiler optimization using `LLVMOPT=n`, but this only applies to the `CPU_LLVM` codegen path: 
-```py
-# tinygrad/runtime/support/compiler_cpu.py
-self.pbo = llvm.LLVMCreatePassBuilderOptions()
-if (opt:=bool(getenv("LLVMOPT", "1"))):
-  self.passes = b'default<O2>'
-  llvm.LLVMPassBuilderOptionsSetLoopUnrolling(self.pbo, True)
-  llvm.LLVMPassBuilderOptionsSetLoopVectorization(self.pbo, True)
-  llvm.LLVMPassBuilderOptionsSetSLPVectorization(self.pbo, True)
-  llvm.LLVMPassBuilderOptionsSetVerifyEach(self.pbo, True)
-else:
-  self.passes = b'default<O0>'
-```
-1 runs with `-O2` and 0 runs with `-O0`. 
-
-Running with `CPU=1` on an M3 Pro: 
-```bash
-$ BEAM=3 CPU=1 python3 test/speed/external_test_speed_v_torch.py TestSpeed.test_sum
-sum  2048x2048 0.26 ms ( 15.89 GFLOPS   63.57 GB/s) in torch, 0.25 ms ( 17.00 GFLOPS 67.99 GB/s) in tinygrad,    0.93x faster 4.19 MOPS 16.78 MB
-sum  4096x4096 1.01 ms ( 16.62 GFLOPS   66.48 GB/s) in torch, 0.79 ms ( 21.20 GFLOPS 84.82 GB/s) in tinygrad, 0.78x faster  16.78 MOPS 67.14 MB
-```
-
-Tinygrad is about on par with torch, but we want to make it even faster. The threshold for green is >0.75x faster: 
-```py
-# tinygrad/helpers.py
-def colorize_float(x: float): return colored(f"{x:7.2f}x", 'green' if x < 0.75 else 'red' if x > 1.15 else 'yellow')
-```
-
-## stepping through .sum()
+## stepping through test_arange
 We will trace how the above operation gets realized into code:
 
 A tensor in tinygrad is just a thin wrapper over a Directed Arcylic Graph of Uops. Every single tensor op defined in `Tensor.py` just generates Uops that are added to that Tensor's graph. `.sum()` is essentially just a reduce operation of type add on an axis with a reshape at the end (so you get a scalar) value. `Tensor.uop` stores this graph. 
@@ -172,7 +133,7 @@ There are also PMs that run based on which Renderer (hardware) that you're using
 
 `TRACK_MATCH_STATS=1` prints a summary of which rules your Uop graph matched against and which PMs your graph went through before your program ends.
 
-**Rangeify specific PMs** (will go over this later (todo!)
+**Rangeify specific PMs** (will go over this later (todo!)) 
 
 Consider: 
 
