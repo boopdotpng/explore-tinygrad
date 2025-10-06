@@ -1,26 +1,35 @@
 from tinygrad import Tensor
+from tinygrad.helpers import Context
 
-def zeros_vs_empty():
-  z = Tensor.zeros(4)
-  print(z.uop)
-  print(z.uop.st)
-  print("e" + "\n"*3)
-  e = Tensor.empty(4)
-  print(e.uop)
-  print(e.uop.st)
+def test_broken_assign():
+  A = Tensor.empty(4,4) 
+  B = Tensor.arange(16).reshape(4,4) 
+  print(B.uop.st)
+  ret = A.permute(1,0).assign(B) # should return B 
+  lst = ret.tolist()
+  lst2 = A.tolist()
+  print(lst)
+  print(lst2)
+
+def track_matches_min():
+  A = Tensor.empty(4,4) 
+  B = Tensor.arange(16).reshape(4,4) 
+  ret = A.permute(1,0).assign(B) # should return B 
+  lst = ret.tolist()
+  print(lst)
+
+def test_kernel_fusion():
+  N = 4
+  N = 2 
+  cmp = Tensor.empty(N)
+  for i in range(N): cmp[i] = i
 
 if __name__ == "__main__":
-  # zeros_vs_empty()
-  N = 2 
-  cmp = Tensor.zeros(N).contiguous()
-  for i in range(N): cmp[i] = i
-  exit()
-  a = Tensor.arange(4)
-  print(a.realize())
-
-  b = Tensor.zeros(4)
-  print("b uop graph: ", b.uop)
-  print("b cont st: ", b.contiguous().uop.st)
-  print("b cont uop graph: ", b.contiguous().uop)
-  b = b.contiguous()
-  for i in range(4): b[i] = i
+  # DEBUG=4 to see generated kernels
+  # with Context(DEBUG=4):
+  #   N = 2 
+  #   cmp = Tensor.empty(N)
+  #   for i in range(N): cmp[i] = i
+  # track_matches_min()
+  test_broken_assign()
+  # test_kernel_fusion()
